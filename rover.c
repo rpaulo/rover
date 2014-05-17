@@ -77,10 +77,9 @@ max17043_vcell(iic_handle_t handle)
 	const int slave = 0x36;
 
 	iic_write_1(handle, slave, 0x02);
-	iic_read_2(handle, slave, &v);
+	iic_read_2_be(handle, slave, &v);
 
 	return 0.00125 * (v >> 4);
-	    //((buf[1] | (buf[0] << 8)) >> 4);
 }
 
 float
@@ -184,24 +183,20 @@ float rh = 0.0;
 void *
 query_temperature(void *arg)
 {
-	uint8_t buf[4];
 	iic_handle_t handle;
-	uint8_t rh_msb, rh_lsb, temp_msb, temp_lsb;
+	uint16_t rh_reg, temp_reg;
 	const struct timespec ts = { 6, 0 };
 	const int slave = 0x27;
 	int i;
 
 	handle = *(iic_handle_t *)arg;
 	for (;;) {
-		for (i = 0; i < 4; i++)
-			iic_read_1(handle, slave, &buf[i]);
-		rh_msb = buf[0] & 0x3f;
-		rh_lsb = buf[1];
-		temp_msb = buf[2];
-		temp_lsb = buf[3];
-		rh = ((rh_msb << 8) | rh_lsb) * 6.10e-3;
-		temperature = (((temp_msb << 8) | temp_lsb) / 4) * 
-		    1.007e-2 - 40.0;
+		if (iic_read_2_be(handle, slave, &rh_reg) < 0)
+			rh_reg = 0;
+		if (iic_read_2_be(handle, slave, &temp_reg) < 0)
+			temp_reg = 0;
+		rh = (rh_reg & 0x3fff) * 6.10e-3;
+		temperature = (temp_reg / 4) * 1.007e-2 - 40.0;
 		pthread_mutex_lock(&update_mtx);
 		pthread_cond_signal(&update_cond);
 		pthread_mutex_unlock(&update_mtx);
