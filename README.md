@@ -5,14 +5,14 @@ rover is a small C program to control a FreeBSD-based rover.  It uses of [libiic
 This rover is based on:
 
 * BeagleBone Black
-* Adafruit Beagle Proto Cape
+* [Adafruit BeagleBone Proto Cape](https://www.adafruit.com/products/572)
 * [TB6612FNG motor driver](https://www.sparkfun.com/products/9457)
 * Two 700mA Li-Po batteries
 * Two [MAX17043G+U Li-Po fuel gauges](https://www.sparkfun.com/products/10617)
 * [Li-Po charger](https://www.sparkfun.com/products/10401)
 * [Li-Po charger/booster](https://www.sparkfun.com/products/11231)
 * [HIH6130 temperature / relative humidity sensor](https://www.sparkfun.com/products/11295)
-* Realtek USB Wi-Fi 
+* [Realtek USB Wi-Fi](https://www.adafruit.com/products/814)
 
 The basic functions of the rover are:
 
