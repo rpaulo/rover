@@ -45,3 +45,8 @@ Everything runs of 3.3V.  The battery fuel gauge is connected to the battery and
 	<tr><td>TB6612FNG PWMB</td><td>P8 11 (EPWMB)</td></tr>
 	<tr><td>TB6612FNG PWMB</td><td>3.3V (TBD)</td></tr>
 </table>
+
+Pictures
+--------
+[Top](http://people.freebsd.org/~rpaulo/fbsd_rover2.JPG)
+[Side](http://people.freebsd.org/~rpaulo/fbsd_rover1.JPG)
