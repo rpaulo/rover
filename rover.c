@@ -43,55 +43,58 @@ int speed = 5;
 pthread_cond_t update_cond;
 pthread_mutex_t update_mtx;
 
-#define	AIN1	87
-#define	AIN2	89
-#define	BIN1	86
-#define	BIN2	88
+#define	GPIO_AIN1	87
+#define	GPIO_AIN2	89
+#define	GPIO_BIN1	86
+#define	GPIO_BIN2	88
 
-void
+#define	MAX17043_SLAVE	0x36
+#define	MAX17043_VCELL	0x02
+#define	MAX17043_SOC	0x04
+#define	MAX17043_MODE	0x06
+#define	MAX17043_CMD	0xfe
+
+#define	HIH6130_SLAVE	0x27
+
+static void
 terminate(int sig)
 {
 	endwin();
 	exit(0);
 }
-void
+
+static void
 max17043_init(iic_handle_t handle)
 {
-	const int slave = 0x36;
-
 	/* Reset the max17043 */
-	iic_write_1(handle, slave, 0xfe);
-	iic_write_1(handle, slave, 0x00);
-	iic_write_1(handle, slave, 0x54);
+	iic_write_1(handle, MAX17043_SLAVE, MAX17043_CMD);
+	iic_write_2(handle, MAX17043_SLAVE, 0x5400);
 
 	/* Enable quick start mode */
-	iic_write_1(handle, slave, 0x06);
-	iic_write_1(handle, slave, 0x40);
-	iic_write_1(handle, slave, 0x00);
+	iic_write_1(handle, MAX17043_SLAVE, MAX17043_MODE);
+	iic_write_2(handle, MAX17043_SLAVE, 0x4000);
 }
 
-float
+static float
 max17043_vcell(iic_handle_t handle)
 {
 	uint16_t v;
-	const int slave = 0x36;
 
-	iic_write_1(handle, slave, 0x02);
-	iic_read_2_be(handle, slave, &v);
+	iic_write_1(handle, MAX17043_SLAVE, MAX17043_VCELL);
+	iic_read_2_be(handle, MAX17043_SLAVE, &v);
 
 	return 0.00125 * (v >> 4);
 }
 
-float
+static float
 max17043_soc(iic_handle_t handle)
 {
-	const int slave = 0x36;
 	float soc;
 	uint8_t buf[2];
 
-	iic_write_1(handle, slave, 0x04);
-	iic_read_1(handle, slave, &buf[0]);
-	iic_read_1(handle, slave, &buf[1]);
+	iic_write_1(handle, MAX17043_SLAVE, MAX17043_SOC);
+	iic_read_1(handle, MAX17043_SLAVE, &buf[0]);
+	iic_read_1(handle, MAX17043_SLAVE, &buf[1]);
 
 	soc = (float)buf[0] + (buf[1] / 256.0);
 	if (soc > 100.0)
@@ -100,7 +103,7 @@ max17043_soc(iic_handle_t handle)
 		return soc;
 }
 
-const char *
+static const char *
 get_battery_status(int status)
 {
 	if (status < 0)
@@ -110,7 +113,7 @@ get_battery_status(int status)
 	return         "<UNKNOWN>  ";
 }
 
-int
+static int
 set_battery_status(float prev_charge, float cur_charge)
 {
 	if (prev_charge == -1)
@@ -125,7 +128,7 @@ set_battery_status(float prev_charge, float cur_charge)
 float main_bat_v = 0;
 float main_bat_charge = 0;
 int main_bat_status = 0;
-void *
+static void *
 query_main_battery(void *arg)
 {
 	iic_handle_t handle;
@@ -153,7 +156,7 @@ query_main_battery(void *arg)
 float motor_bat_v = 0;
 float motor_bat_charge = 0;
 int motor_bat_status = 0;
-void *
+static void *
 query_motor_battery(void *arg)
 {
 	iic_handle_t handle;
@@ -180,21 +183,21 @@ query_motor_battery(void *arg)
 
 float temperature = 0.0;
 float rh = 0.0;
-void *
+static void *
 query_temperature(void *arg)
 {
 	iic_handle_t handle;
 	uint16_t rh_reg, temp_reg;
+	uint32_t reg;
 	const struct timespec ts = { 6, 0 };
-	const int slave = 0x27;
 	int i;
 
 	handle = *(iic_handle_t *)arg;
 	for (;;) {
-		if (iic_read_2_be(handle, slave, &rh_reg) < 0)
-			rh_reg = 0;
-		if (iic_read_2_be(handle, slave, &temp_reg) < 0)
-			temp_reg = 0;
+		if (iic_read_4_be(handle, HIH6130_SLAVE, &reg) < 0)
+			reg = 0;
+		rh_reg = reg >> 16;
+		temp_reg = reg & 0xffff;
 		rh = (rh_reg & 0x3fff) * 6.10e-3;
 		temperature = (temp_reg / 4) * 1.007e-2 - 40.0;
 		pthread_mutex_lock(&update_mtx);
@@ -202,10 +205,11 @@ query_temperature(void *arg)
 		pthread_mutex_unlock(&update_mtx);
 		nanosleep(&ts, NULL);
 	}
+
 	return NULL;
 }
 
-void *
+static void *
 handle_input(void *arg)
 {
 	int c;
@@ -217,10 +221,10 @@ handle_input(void *arg)
 	while ((c = getch()) != ERR) {
 		switch (c) {
 		case 'q':
-			gpio_pin_set(ghandle, 86, 0);
-			gpio_pin_set(ghandle, 87, 0);
-			gpio_pin_set(ghandle, 88, 0);
-			gpio_pin_set(ghandle, 89, 0);
+			gpio_pin_set(ghandle, GPIO_AIN1, 0);
+			gpio_pin_set(ghandle, GPIO_AIN2, 0);
+			gpio_pin_set(ghandle, GPIO_BIN2, 0);
+			gpio_pin_set(ghandle, GPIO_BIN2, 0);
 			terminate(0);
 			break;
 		case ' ':
@@ -265,30 +269,30 @@ handle_input(void *arg)
 			break;
 		}
 		if (going_backwards) {
-			gpio_pin_set(ghandle, 86, 0);
-			gpio_pin_set(ghandle, 87, 0);
-			gpio_pin_set(ghandle, 88, 1);
-			gpio_pin_set(ghandle, 89, 1);
+			gpio_pin_set(ghandle, GPIO_AIN1, 0);
+			gpio_pin_set(ghandle, GPIO_AIN2, 1);
+			gpio_pin_set(ghandle, GPIO_BIN1, 0);
+			gpio_pin_set(ghandle, GPIO_BIN2, 1);
 		} else if (going_forward) {
-			gpio_pin_set(ghandle, 86, 1);
-			gpio_pin_set(ghandle, 87, 1);
-			gpio_pin_set(ghandle, 88, 0);
-			gpio_pin_set(ghandle, 89, 0);
+			gpio_pin_set(ghandle, GPIO_AIN1, 1);
+			gpio_pin_set(ghandle, GPIO_AIN2, 0);
+			gpio_pin_set(ghandle, GPIO_BIN1, 1);
+			gpio_pin_set(ghandle, GPIO_BIN2, 0);
 		} else if (going_right) {
-			gpio_pin_set(ghandle, 86, 0);
-			gpio_pin_set(ghandle, 88, 1);
-			gpio_pin_set(ghandle, 87, 0);
-			gpio_pin_set(ghandle, 89, 0);
+			gpio_pin_set(ghandle, GPIO_AIN1, 0);
+			gpio_pin_set(ghandle, GPIO_AIN2, 0);
+			gpio_pin_set(ghandle, GPIO_BIN1, 0);
+			gpio_pin_set(ghandle, GPIO_BIN2, 1);
 		} else if (going_left) {
-			gpio_pin_set(ghandle, 86, 0);
-			gpio_pin_set(ghandle, 88, 0);
-			gpio_pin_set(ghandle, 87, 0);
-			gpio_pin_set(ghandle, 89, 1);
+			gpio_pin_set(ghandle, GPIO_AIN1, 0);
+			gpio_pin_set(ghandle, GPIO_AIN2, 1);
+			gpio_pin_set(ghandle, GPIO_BIN1, 0);
+			gpio_pin_set(ghandle, GPIO_BIN2, 0);
 		} else {
-			gpio_pin_set(ghandle, 86, 0);
-			gpio_pin_set(ghandle, 87, 0);
-			gpio_pin_set(ghandle, 88, 0);
-			gpio_pin_set(ghandle, 89, 0);
+			gpio_pin_set(ghandle, GPIO_AIN1, 0);
+			gpio_pin_set(ghandle, GPIO_AIN2, 0);
+			gpio_pin_set(ghandle, GPIO_BIN1, 0);
+			gpio_pin_set(ghandle, GPIO_BIN2, 0);
 		}
 
 		sysctlbyname("dev.am335x_pwm.2.dutyA", NULL, NULL,
@@ -320,14 +324,14 @@ main(int argc, char *argv[])
 	if (iic2 == IIC_INVALID_HANDLE)
 		warn("iic_open");
 	ghandle = gpio_open(0);
-	gpio_pin_output(ghandle, 86);
-	gpio_pin_set(ghandle, 86, 0);
-	gpio_pin_output(ghandle, 87);
-	gpio_pin_set(ghandle, 87, 0);
-	gpio_pin_output(ghandle, 88);
-	gpio_pin_set(ghandle, 88, 0);
-	gpio_pin_output(ghandle, 89);
-	gpio_pin_set(ghandle, 89, 0);
+	gpio_pin_output(ghandle, GPIO_AIN1);
+	gpio_pin_set(ghandle, GPIO_AIN1, 0);
+	gpio_pin_output(ghandle, GPIO_AIN2);
+	gpio_pin_set(ghandle, GPIO_AIN2, 0);
+	gpio_pin_output(ghandle, GPIO_BIN1);
+	gpio_pin_set(ghandle, GPIO_BIN1, 0);
+	gpio_pin_output(ghandle, GPIO_BIN2);
+	gpio_pin_set(ghandle, GPIO_BIN2, 0);
 
 	pthread_cond_init(&update_cond, NULL);
 	pthread_mutex_init(&update_mtx, NULL);
