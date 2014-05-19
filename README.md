@@ -1,6 +1,8 @@
 # rover
 
-rover is a small C program to control a FreeBSD-based rover.  It uses of [libiic](https://bitbucket.org/rpaulo/libiic) and [libgpio](https://bitbucket.org/rpaulo/libgpio).
+rover is a small C program to control a FreeBSD-based rover.  It uses 
+of [libiic](https://bitbucket.org/rpaulo/libiic) and 
+[libgpio](https://bitbucket.org/rpaulo/libgpio).
 
 This rover is based on:
 
@@ -27,7 +29,11 @@ The interface is implemented in curses.  Here's a screenshot:
 Connections
 -----------
 
-Everything runs of 3.3V.  The battery fuel gauge is connected to the battery and to the USB battery chargers.  There are two MAX17043G+U being used, but, since they both share the same I2C slave address, they must be connected to different I2C controllers.
+Everything runs off 3.3V.  
+The battery fuel gauge is connected to the battery and to the USB battery 
+chargers.  There are two MAX17043G+U being used, but, since they both 
+share the same I2C slave address, they must be connected to different I2C 
+controllers.
 
 
 Description | GPIO PIN
